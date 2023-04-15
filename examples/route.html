@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Direct sunlight along a route</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body,
+        #map {
+            height: 100%;
+        }
+    </style>
+</head>
+
+</head>
+
+<body>
+    <div id='map'></div>
+</body>
+<script src="https://api.tiles.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.js"></script>
+<script src='https://unpkg.com/@turf/turf/turf.min.js'></script>
+<script>
+
+    const TILE_SIZE = 512;
+    const BUILDING_ZOOM = 16;
+
+    const lng2pixel = (lng, zoom) => {
+        return ((lng + 180) / 360 * Math.pow(2, zoom)) * TILE_SIZE;
+    }
+
+    const lat2pixel = (lat, zoom) => {
+        return ((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom)) * TILE_SIZE
+    }
+
+    const unproject = (coords, zoom) => {
+        const [lng, lat] = coords;
+        return [lng2pixel(lng, zoom), lat2pixel(lat, zoom)];
+    }
+
+    const GeoJSON = {
+        "type": "Feature",
+        "properties": {
+            "name": "Route M44 (10 min.)",
+            "num": "M244a",
+            "description": "*Buckow-Süd, Stuthirtenweg - S+U Hermannstr.*"
+        },
+        "geometry": {
+            "type": "LineString",
+            "coordinates": [[13.448084, 52.41767], [13.441106, 52.417554], [13.438144, 52.417492], [13.438214, 52.41908], [13.438264, 52.419366], [13.438204, 52.420125], [13.438119, 52.420769], [13.437916, 52.42165], [13.437566, 52.422503], [13.437375, 52.422828], [13.436901, 52.4234], [13.436705, 52.423598], [13.436357, 52.423909]]
+        }
+    };
+    const numPoints = 500;
+    const busRoute = GeoJSON.geometry;
+    const length = turf.length(busRoute);
+    const distanceBetweenPoints = length / numPoints; // in km
+    const pointLocations = []; // [[lng, lat], [lng, lat], ..., [lng, lat]]
+    for (let i = 0; i < numPoints; i++) {
+        const pointGeoJSON = turf.along(busRoute, distanceBetweenPoints * i);
+        pointLocations.push(pointGeoJSON.geometry.coordinates);
+    }
+
+    // to keep points from edge of screen, ensure all points
+    // in a group lie within the center 80% of the screen
+    const viewportWidth = window.innerWidth * .8;
+    const viewportHeight = window.innerHeight * .8;
+
+    const screenGroups = [];
+
+    while (pointLocations.length > 0) {
+        const group = [pointLocations.shift()];
+        let groupPixelWidth = 0;
+        let groupPixelHeight = 0;
+        while (pointLocations.length > 0 && groupPixelWidth < viewportWidth && groupPixelHeight < viewportHeight) {
+            group.push(pointLocations.shift());
+            const groupPoints = turf.lineString(group);
+            const [minLng, minLat, maxLng, maxLat] = turf.bbox(groupPoints);
+            const [minX, minY] = unproject([minLng, minLat], BUILDING_ZOOM);
+            const [maxX, maxY] = unproject([maxLng, maxLat], BUILDING_ZOOM);
+            groupPixelWidth = maxX - minX;
+            groupPixelHeight = minY - maxY; // pixel value increases from top to bottom while lat increases from bottom to top so reverse minY/maxY
+        }
+        screenGroups.push(group);
+    }
+
+    mapboxgl.accessToken = // PLEASE USE YOUR OWN KEY. THIS IS FOR DEMO PURPOSES ONLY.
+        'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
+    var map = window.map = new mapboxgl.Map({
+        container: 'map',
+        zoom: 15,
+        center: screenGroups[0][0],
+        style: 'mapbox://styles/mapbox/streets-v11',
+        hash: true
+    });
+
+    console.log(screenGroups.length)
+
+    map.on('load', () => {
+        colors = ['red', 'green', 'blue'];
+        screenGroups.forEach((group, index) => {
+            const sourceId = `source${index}`;
+            const layerId = `layer${index}`;
+            map.addSource(sourceId, {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: [{
+                        type: 'Feature',
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: group
+                        }
+                    }]
+                }
+            })
+            map.addLayer({
+                id: layerId,
+                source: sourceId,
+                type: 'line',
+                'paint': {
+                    'line-color': colors[index],
+                    'line-width': 3
+                }
+            })
+        })
+
+    })
+
+
+
+</script>
+
+</html>
