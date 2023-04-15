@@ -26,11 +26,27 @@
     <div id='map'></div>
 </body>
 <script src="https://api.tiles.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.js"></script>
+<script
+    src='https://www.unpkg.com/mapbox-gl-shadow-simulator@0.21.1/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
 <script src='https://unpkg.com/@turf/turf/turf.min.js'></script>
 <script>
 
     const TILE_SIZE = 512;
     const BUILDING_ZOOM = 16;
+
+    const mapLoaded = (map) => {
+        return new Promise((res, rej) => {
+            function cb() {
+                if (!map.loaded()) {
+                    return;
+                }
+                map.off("render", cb);
+                res();
+            }
+            map.on("render", cb);
+            cb();
+        });
+    };
 
     const lng2pixel = (lng, zoom) => {
         return ((lng + 180) / 360 * Math.pow(2, zoom)) * TILE_SIZE;
@@ -90,7 +106,7 @@
         screenGroups.push(group);
     }
 
-    mapboxgl.accessToken = // PLEASE USE YOUR OWN KEY. THIS IS FOR DEMO PURPOSES ONLY.
+    mapboxgl.accessToken = // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY.
         'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
     var map = window.map = new mapboxgl.Map({
         container: 'map',
@@ -99,8 +115,6 @@
         style: 'mapbox://styles/mapbox/streets-v11',
         hash: true
     });
-
-    console.log(screenGroups.length)
 
     map.on('load', () => {
         colors = ['red', 'green', 'blue'];
@@ -125,11 +139,58 @@
                 source: sourceId,
                 type: 'line',
                 'paint': {
-                    'line-color': colors[index],
+                    'line-color': colors[index % 3],
                     'line-width': 3
                 }
             })
         })
+
+        const shadeMap = new ShadeMap({
+            // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY. https://shademap.app/about
+            apiKey: "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InRwcGlvdHJvd3NraUBzaGFkZW1hcC5hcHAiLCJjcmVhdGVkIjoxNjYyNDkzMDY2Nzk0LCJpYXQiOjE2NjI0OTMwNjZ9.ovCrLTYsdKFTF6TW3DuODxCaAtGQ3qhcmqj3DWcol5g",
+            date: new Date(1681493800745),
+            terrainSource: {
+                maxZoom: 15,
+                tileSize: 256,
+                getSourceUrl: ({ x, y, z }) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`,
+                getElevation: ({ r, g, b, a }) => (r * 256 + g + b / 256) - 32768,
+            },
+            getFeatures: async () => {
+                await mapLoaded(map);
+                const buildingData = map.querySourceFeatures('composite', { sourceLayer: 'building' }).filter((feature) => {
+                    return feature.properties && feature.properties.underground !== "true" && (feature.properties.height || feature.properties.render_height)
+                });
+                return buildingData;
+            },
+        }).addTo(map);
+
+        screenGroups.forEach(async group => {
+            const groupCenter = turf.center(turf.points(group));
+
+            const shadeMapLoaded = new Promise((res, rej) => {
+                shadeMap.on('idle', res);
+            });
+            map.setCenter(groupCenter.geometry.coordinates);
+            const mapboxLoaded = mapLoaded(map);
+
+            const upperLeftCoords = map.getBounds().getNorthWest().toArray();
+            const [originX, originY] = unproject(upperLeftCoords, BUILDING_ZOOM);
+            const pixelCoordinates = group.map(coord => {
+                const [x, y] = unproject(coord, BUILDING_ZOOM);
+                return [x - originX, y - originY];
+            })
+            const dates = [new Date(1681493800745)];
+
+            await Promise.all([mapboxLoaded, shadeMapLoaded]);
+
+            const output = shadeMap._generateShadeProfile({
+                pixels: pixelCoordinates.flat(),
+                dates,
+                sunColor: '#ffffff',
+                shadeColor: '#000000'
+            });
+        })
+
 
     })
 

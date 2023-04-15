@@ -1,3 +1,7 @@
+# Direct sunlight along a route
+
+The code for this example is available [here](/examples/route.html)
+
 In this example I will show how to use ShadeMap to calculate how much direct sunlight a vehicle, such as a bus, receives while traveling along a route. I will use Berlin bus route M44 represented as a GeoJSON LineString geometry I obtained [here](https://umap.openstreetmap.fr/en/datalayer/2737191/).
 
 The bus travels 1.41 km over the course of 10 minutes. To simplify this exercise we will assume the bus has a constant velocity. For a more accurate calculation, real-time bus location data represented by [GTFS](https://gtfs.org/) could be used instead.
@@ -47,12 +51,80 @@ while (pointLocations.length > 0) {
 }
 ```
 
-Below is an example of how our route is split across three groups to fit on a screen with iPhone dimensions. The images show all three groups at a low zoom level and then each individual group with buildings at zoom level 16:
+Below is an example of how our route is split across four groups to fit the screen of an iPhone at zoom level 16. The first images shows all four groups at a low zoom level and then one of the groups at zoom level 16 with buildings present.
 
 ![all-groups](/images/route/all-groups.png)
 
-![group1](/images/route/groups1.png)
+![one-group](/images/route/one-group.png)
 
-![group2](/images/route/groups2.png)
+Now let us initialize the Mapbox map and the ShadeMap library
 
-![group3](/images/route/groups3.png)
+```
+mapboxgl.accessToken = // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY.
+var map = window.map = new mapboxgl.Map({
+    container: 'map',
+    zoom: 15,
+    center: screenGroups[0][0],
+    style: 'mapbox://styles/mapbox/streets-v11',
+    hash: true
+});
+
+map.on('load', () => {
+    'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
+
+    const shadeMap = new ShadeMap({
+        // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY. https://shademap.app/about
+        apiKey: 
+        date: new Date(1681493800745),
+        terrainSource: {
+            maxZoom: 15,
+            tileSize: 256,
+            getSourceUrl: ({ x, y, z }) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`,
+            getElevation: ({ r, g, b, a }) => (r * 256 + g + b / 256) - 32768,
+        },
+        getFeatures: async () => {
+            await mapLoaded(map);
+            const buildingData = map.querySourceFeatures('composite', { sourceLayer: 'building' }).filter((feature) => {
+                return feature.properties && feature.properties.underground !== "true" && (feature.properties.height || feature.properties.render_height)
+            });
+            return buildingData;
+        },
+    }).addTo(map);
+})
+```
+
+And finally, load the map and ShadeMap data for one group at a time and then compute the direct exposure for all the points of the group for the dates in the dates array. The return value is a bitmap array. Each 4 byte pixel contains either a sunlight or shade color value depending on if the corresponding location at the corresponding time is in the sun or shade. 
+
+Each column of the bitmap corresponds to a point location and each row of the bitmap corresponds to one of the Date values in the dates array. The bitmap value for pixel (0, height - 1) is the first point in the group at time given by the first Date in the dates array, while the bitmap value for pixel (width - 1, 0) is the last point in the group at time given by the lat date in the dates array.
+
+```
+screenGroups.forEach(async group => {
+    const groupCenter = turf.center(turf.points(group));
+
+    const shadeMapLoaded = new Promise((res, rej) => {
+        shadeMap.on('idle', res);
+    });
+    map.setCenter(groupCenter.geometry.coordinates);
+    const mapboxLoaded = mapLoaded(map);
+
+    const upperLeftCoords = map.getBounds().getNorthWest().toArray();
+    const [originX, originY] = unproject(upperLeftCoords, BUILDING_ZOOM);
+    const pixelCoordinates = group.map(coord => {
+        const [x, y] = unproject(coord, BUILDING_ZOOM);
+        return [x - originX, y - originY];
+    });
+    
+    // only one date corresponding to dawn
+    const dates = [new Date(1681493800745)];
+
+    await Promise.all([mapboxLoaded, shadeMapLoaded]);
+
+    // output bitmap dimensions will be group.length * dates.length * 4 bytes per pixel
+    const output = shadeMap._generateShadeProfile({
+        pixels: pixelCoordinates.flat(),
+        dates,
+        sunColor: '#ffffff',
+        shadeColor: '#000000'
+    });
+})
+```
