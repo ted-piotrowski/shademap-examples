@@ -1,8 +1,8 @@
 In this example I will show how to use ShadeMap to calculate how much direct sunlight a vehicle, such as a bus, receives while traveling along a route. I will use Berlin bus route M44 represented as a GeoJSON LineString geometry I obtained [here](https://umap.openstreetmap.fr/en/datalayer/2737191/).
 
-The bus travels 2 km over the course of 10 minutes. To simplify this exercise we will assume the bus has a constant velocity. For a more accurate calculation, real-time bus location data represented by [GTFS](https://gtfs.org/) could be used instead.
+The bus travels 1.41 km over the course of 10 minutes. To simplify this exercise we will assume the bus has a constant velocity. For a more accurate calculation, real-time bus location data represented by [GTFS](https://gtfs.org/) could be used instead.
 
-First we choose some number of points to check along the route, let's say 500. The points will be at equal distances from each other and the distance between any two points will the the length of the route divided by the number of points.
+First we choose some number of points to check along the route, let's say 500. The points will be at equal distances from each other and the distance between any two points will the the length of the route divided by the number of points. On our route, the distance between points will be `1.41km / 500 = 2.8m`.
 
 ```
 const numPoints = 500;
@@ -50,6 +50,9 @@ while (pointLocations.length > 0) {
 Below is an example of how our route is split across three groups to fit on a screen with iPhone dimensions. The images show all three groups at a low zoom level and then each individual group with buildings at zoom level 16:
 
 ![all-groups](/images/route/all-groups.png)
+
 ![group1](/images/route/groups1.png)
+
 ![group2](/images/route/groups2.png)
+
 ![group3](/images/route/groups3.png)
