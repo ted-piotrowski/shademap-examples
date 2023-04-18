@@ -51,7 +51,7 @@ while (pointLocations.length > 0) {
 }
 ```
 
-Below is an example of how our route is split into groups that fit the screen of an iPhone at zoom level 15. The first image shows the extent of each group at a low zoom level and the second image shows one of the groups at the required zoom level 15 with buildings present.
+Below is an example of how our route is split into groups that fit the screen of an iPhone at zoom level 15. The first image shows the extent of each group at a low zoom level and the second image shows one of the groups at the required zoom level 15 with building shadow data present.
 
 | All groups | One group |
 | --- | --- |
