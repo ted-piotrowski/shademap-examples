@@ -139,3 +139,7 @@ for (let i = 0; i < screenGroups.length; i++) {
     }
 };
 ```
+
+In this example, I place a map marker at every discrete point along the route and color it black if it is in the shade and white if it is in the sun.
+
+![markers](/images/route/markers.png)
