@@ -1,6 +1,6 @@
 # Direct sunlight along a route
 
-The demo for this example is available [here](https://ted-piotrowski.github.io/shademap-examples/examples/route.html).
+**The demo for this example is available [here](https://ted-piotrowski.github.io/shademap-examples/examples/route.html).**
 
 In this example I will show how to use ShadeMap to calculate how much direct sunlight a vehicle, such as a bus, receives while traveling along a route. I will use Berlin bus route 101 represented as a GeoJSON LineString geometry I obtained [here](https://umap.openstreetmap.fr/en/datalayer/2737191/).
 
