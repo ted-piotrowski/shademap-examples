@@ -53,9 +53,7 @@ while (pointLocations.length > 0) {
 
 Below is an example of how our route is split across four groups to fit the screen of an iPhone at zoom level 15. The first images shows all four groups at a low zoom level and then one of the groups at zoom level 15 with buildings present.
 
-![all-groups](/images/route/all-groups.png)
-
-![one-group](/images/route/one-group.png)
+![all-groups](/images/route/all-groups.png) | ![one-group](/images/route/one-group.png)
 
 Now let us initialize the Mapbox map and the ShadeMap library. The ShadeMap library will use [Amazon's OpenData terrain tiles](https://registry.opendata.aws/terrain-tiles/) and buildings data from Mapbox's terrain tiles via `map.querySourceFeatures` API.
 
