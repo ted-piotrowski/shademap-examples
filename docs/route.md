@@ -2,13 +2,13 @@
 
 The code for this example is available [here](/examples/route.html)
 
-In this example I will show how to use ShadeMap to calculate how much direct sunlight a vehicle, such as a bus, receives while traveling along a route. I will use Berlin bus route M44 represented as a GeoJSON LineString geometry I obtained [here](https://umap.openstreetmap.fr/en/datalayer/2737191/).
+In this example I will show how to use ShadeMap to calculate how much direct sunlight a vehicle, such as a bus, receives while traveling along a route. I will use Berlin bus route 101 represented as a GeoJSON LineString geometry I obtained [here](https://umap.openstreetmap.fr/en/datalayer/2737191/).
 
-The bus travels 1.41 km over the course of 10 minutes. To simplify this exercise we will assume the bus has a constant velocity. For a more accurate calculation, real-time bus location data represented by [GTFS](https://gtfs.org/) could be used instead.
+The bus travels 8.5km over the course of 20 minutes. To simplify this exercise we will assume the bus has a constant velocity. For a more accurate calculation, real-time bus location data represented by [GTFS](https://gtfs.org/) could be used instead.
 
-First we choose some number of points to check along the route, let's say 500. The points will be at equal distances from each other and the distance between any two points will the the length of the route divided by the number of points. On our route, the distance between points will be `1.41km / 500 = 2.8m`.
+First we choose some number of discrete points to check along the route, let's say 500. The points will be at equal distances from each other and the distance between any two points will be the length of the route divided by the number of points. On our route, the distance between points will be `8.5km / 500 = ~17m`.
 
-```
+```javascript
 const numPoints = 500;
 const busRoute = // LineString
 const length = turf.length(busRoute);
@@ -20,13 +20,13 @@ for (let i = 0; i < numPoints; i++) {
 }
 ```
 
-Next we need to find on which map tiles the points are located. Map tiles contain the building data we need to calculate building shadows, including each building's footprint and height. Map tiles at low zoom levels do not contain building data. We specifically need to use map tiles at zoom level 16 or above.
+Next we need to find on which map tiles the points are located. Map tiles contain the building data we need to calculate building shadows, including each building's footprint and height. Map tiles at low zoom levels do not contain building data. We specifically need to use Mapbox's map tiles at zoom level 15 or above.
 
-More concretely, we will load the map at zoom level 16, place as many points as will fit on the screen and calculate their sun exposure. Next, we will pan the map the accomodate the additional points and repeat the process until the sun exposure for all points has been calculated.
+More concretely, we will load the map at zoom level 15, place as many points as will fit on the screen and calculate their sun exposure. Next, we will pan the map the accomodate the additional points and repeat the process until the sun exposure for all points has been calculated.
 
 To do this, we must split our 500 points into groups that are small enough to fit on a single screen. We will start with the first point and add additional points as long as they don't overflow the pixel dimensions of the screen.
 
-```
+```javascript
 // to keep points from edge of screen, ensure all points
 // in a group lie within the center 80% of the screen
 const viewportWidth = window.innerWidth * .8;
@@ -51,15 +51,15 @@ while (pointLocations.length > 0) {
 }
 ```
 
-Below is an example of how our route is split across four groups to fit the screen of an iPhone at zoom level 16. The first images shows all four groups at a low zoom level and then one of the groups at zoom level 16 with buildings present.
+Below is an example of how our route is split across four groups to fit the screen of an iPhone at zoom level 15. The first images shows all four groups at a low zoom level and then one of the groups at zoom level 15 with buildings present.
 
 ![all-groups](/images/route/all-groups.png)
 
 ![one-group](/images/route/one-group.png)
 
-Now let us initialize the Mapbox map and the ShadeMap library
+Now let us initialize the Mapbox map and the ShadeMap library. The ShadeMap library will use [Amazon's OpenData terrain tiles](https://registry.opendata.aws/terrain-tiles/) and buildings data from Mapbox's terrain tiles via `map.querySourceFeatures` API.
 
-```
+```javascript
 mapboxgl.accessToken = // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY.
 var map = window.map = new mapboxgl.Map({
     container: 'map',
@@ -97,34 +97,45 @@ And finally, load the map and ShadeMap data for one group at a time and then com
 
 Each column of the bitmap corresponds to a point location and each row of the bitmap corresponds to one of the Date values in the dates array. The bitmap value for pixel (0, height - 1) is the first point in the group at time given by the first Date in the dates array, while the bitmap value for pixel (width - 1, 0) is the last point in the group at time given by the lat date in the dates array.
 
-```
-screenGroups.forEach(async group => {
+In this example, the dates array only contains a single date, so the bitmap will be 500 pixels wide (one pixel for each discrete point along the route) and 1 pixel high (corresponsing to a single date)
+
+```javascript
+for (let i = 0; i < screenGroups.length; i++) {
+    const group = screenGroups[i];
     const groupCenter = turf.center(turf.points(group));
 
     const shadeMapLoaded = new Promise((res, rej) => {
         shadeMap.on('idle', res);
     });
-    map.setCenter(groupCenter.geometry.coordinates);
+    map.setCenter(groupCenter.geometry.coordinates).setZoom(BUILDING_ZOOM);
     const mapboxLoaded = mapLoaded(map);
 
-    const upperLeftCoords = map.getBounds().getNorthWest().toArray();
-    const [originX, originY] = unproject(upperLeftCoords, BUILDING_ZOOM);
+    const [centerX, centerY] = unproject(groupCenter.geometry.coordinates, BUILDING_ZOOM);
+    const screenOriginCoords = map.getBounds().getNorthWest().toArray();
+    const [originX, originY] = unproject(screenOriginCoords, BUILDING_ZOOM);
     const pixelCoordinates = group.map(coord => {
         const [x, y] = unproject(coord, BUILDING_ZOOM);
         return [x - originX, y - originY];
-    });
-    
-    // only one date corresponding to dawn
+    })
     const dates = [new Date(1681493800745)];
 
     await Promise.all([mapboxLoaded, shadeMapLoaded]);
 
-    // output bitmap dimensions will be group.length * dates.length * 4 bytes per pixel
     const output = shadeMap._generateShadeProfile({
         pixels: pixelCoordinates.flat(),
         dates,
         sunColor: '#ffffff',
         shadeColor: '#000000'
     });
-})
+
+    // output is a (r,g,b,a) bitmap containing sunColor or shadeColor
+    // output dimensions are (numPoints X dates.length X 4 bytes per pixel)
+    // process the data as you see fit
+    for (let i = 0; i < output.length / 4; i++) {
+        const marker = new mapboxgl.Marker({
+            color: output[i * 4] === 0 ? '#000' : '#fff'
+        });
+        marker.setLngLat(group[i]).addTo(map);
+    }
+};
 ```
