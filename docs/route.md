@@ -70,8 +70,6 @@ var map = window.map = new mapboxgl.Map({
 });
 
 map.on('load', () => {
-    'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
-
     const shadeMap = new ShadeMap({
         // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY. https://shademap.app/about
         apiKey: 
