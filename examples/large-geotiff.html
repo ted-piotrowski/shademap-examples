@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Large GeoTIFF download</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        html,
+        body,
+        #map {
+            height: 100%;
+        }
+
+        #loader {
+            display: none;
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            top: 50%;
+            left: 50%;
+            margin: 0 0 -25px -25px;
+            z-index: 9999;
+            border-radius: 50%;
+            background-color: gray;
+            color: white;
+            text-align: center;
+            line-height: 50px;
+        }
+    </style>
+</head>
+
+</head>
+
+<body>
+    <div id='map'></div>
+    <div id='loader'></div>
+</body>
+<script src="https://api.tiles.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.js"></script>
+<script
+    src='https://www.unpkg.com/mapbox-gl-shadow-simulator@0.25.1/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
+<script src="https://cdn.jsdelivr.net/npm/geotiff@2.0.7/dist-browser/geotiff.js"></script>
+<script>
+    const TILE_SIZE = 512;
+    const BUILDING_ZOOM = 15;
+
+    const lng2pixel = (lng, zoom) => {
+        return ((lng + 180) / 360 * Math.pow(2, zoom)) * TILE_SIZE;
+    }
+
+    const lat2pixel = (lat, zoom) => {
+        return ((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom)) * TILE_SIZE
+    }
+
+    const unproject = (coords, zoom) => {
+        const [lat, lng] = coords;
+        return [Math.floor(lng2pixel(lng, zoom)), Math.floor(lat2pixel(lat, zoom))];
+    }
+
+    const mapLoaded = (map) => {
+        return new Promise((res, rej) => {
+            function cb() {
+                if (!map.loaded()) {
+                    return;
+                }
+                map.off("render", cb);
+                res();
+            }
+            map.on("render", cb);
+            cb();
+        });
+    };
+
+    const shadeMapLoaded = (shadeMap) => {
+        return new Promise((res, rej) => {
+            shadeMap.on('idle', res);
+        });
+    };
+
+    const loader = document.getElementById('loader');
+
+    const worldSize = TILE_SIZE * 2 ** BUILDING_ZOOM;
+    function roundToScreenSize(nw, se) {
+
+        const nwM = mapboxgl.MercatorCoordinate.fromLngLat({ lng: nw[1], lat: nw[0] });
+        const seM = mapboxgl.MercatorCoordinate.fromLngLat({ lng: se[1], lat: se[0] });
+        const [xMin, yMin] = [nwM.x * worldSize, nwM.y * worldSize];
+        const [xMax, yMax] = [seM.x * worldSize, seM.y * worldSize];
+
+        const wSpan = xMax - xMin;
+        const hSpan = yMax - yMin;
+
+        const wScreens = Math.ceil(wSpan / innerWidth);
+        const hScreens = Math.ceil(hSpan / innerHeight);
+
+        const seMRounded = new mapboxgl.MercatorCoordinate(
+            (xMin + wScreens * innerWidth) / worldSize,
+            (yMin + hScreens * innerHeight) / worldSize,
+            0
+        );
+
+        const newSE = seMRounded.toLngLat();
+
+        const width = wScreens * innerWidth;
+        const height = hScreens * innerHeight;
+
+        return { width, height, wScreens, hScreens, newSE }
+
+    }
+
+    // lower half
+    // const nw = [38.895862, -77.120127];
+    // const se = [38.792226, -76.910423];
+
+    // upper half
+    const nw = [38.985862, -77.120127];
+    const se = [38.895862, -76.910423];
+
+    // test coords
+    // let nw = [38.815862, -76.930127];
+    // let se = [38.792226, -76.910423];
+
+    const { innerWidth, innerHeight } = window;
+    const [xMin, yMin] = unproject(nw, BUILDING_ZOOM);
+    const [xMax, yMax] = unproject(se, BUILDING_ZOOM);
+
+    const { width, height, wScreens, hScreens, newSE } = roundToScreenSize(nw, se);
+    se[0] = newSE.lat;
+    se[1] = newSE.lng;
+
+    const MAX_ARRAY_SIZE = 2 ** 26;
+    const pixels = width * height;
+    console.log(pixels, MAX_ARRAY_SIZE);
+    if (pixels > MAX_ARRAY_SIZE) {
+        throw new Error(`Bounds to large to process, reduce area by ${Math.ceil((pixels - MAX_ARRAY_SIZE) / MAX_ARRAY_SIZE * 100)}`);
+    }
+
+    const screens = [];
+    for (let i = 0; i < wScreens; i++) {
+        for (let j = 0; j < hScreens; j++) {
+            screens.push([xMin + i * innerWidth, yMin + j * innerHeight]);
+        }
+    }
+
+    async function loadScreen(shadeMap, coords) {
+        const [x, y] = coords;
+        map.setZoom(BUILDING_ZOOM);
+        const mercX = (x + innerWidth / 2) / worldSize;
+        const mercY = (y + innerHeight / 2) / worldSize;
+        const merc = new mapboxgl.MercatorCoordinate(mercX, mercY, 0);
+        const center = merc.toLngLat();
+        map.setCenter(center);
+        const smLoaded = shadeMapLoaded(shadeMap)
+        const mapboxLoaded = mapLoaded(map);
+        await Promise.all([mapboxLoaded, smLoaded]);
+        return;
+    }
+
+    async function download(data) {
+        const ModelTiepoint = [0, 0, 0, nw[1], nw[0], 0];
+        const ModelPixelScale = [(se[1] - nw[1]) / width, (nw[0] - se[0]) / height, 0];
+        const metadata = {
+            width,
+            height,
+            ModelTiepoint,
+            ModelPixelScale,
+            GeographicTypeGeoKey: 4326,
+            // GDAL_NODATA,
+            GeogCitationGeoKey: 'WGS 84',
+        };
+        console.log(data.length);
+        const arrayBuffer = await GeoTIFF.writeArrayBuffer(
+            Array.from(data),
+            metadata
+        );
+        const typedArray = new Uint8Array(arrayBuffer);
+        const charCode = typedArray.reduce((all, char) => {
+            return (all += String.fromCharCode(char));
+        }, "");
+        const base64 = btoa(charCode);
+        const datauri = `data:image/tiff;base64,${base64}`;
+
+        const link = document.createElement("a");
+        link.href = datauri;
+        link.download = 'stitch.tiff'
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    async function main(shadeMap, screens) {
+        loader.style.display = `block`;
+        const bitmap = new Uint8Array(width * height);
+        for (let i = 0; i < screens.length; i++) {
+            loader.innerText = `${(i / screens.length * 100).toFixed(0)}%`;
+            console.log(`loading screen ${i}`);
+            await loadScreen(shadeMap, screens[i]);
+            await new Promise((res, rej) => {
+                setTimeout(res, 1000);
+            });
+            const { data } = shadeMap.toGeoTiff();
+            const [x, y] = screens[i];
+            copy(data, bitmap, innerWidth, innerHeight, x - xMin, y - yMin, width, height);
+        }
+        download(bitmap);
+        loader.style.display = `none`;
+    }
+
+    async function copy(source, destination, sw, sh, dx, dy, dw, dh) {
+        for (let i = 0; i < sh; i++) {
+            for (let j = 0; j < sw; j++) {
+                destination[(dy + i) * dw + dx + j] = source[i * sw + j];
+            }
+        }
+    }
+
+    mapboxgl.accessToken = // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY.
+        'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
+    var map = window.map = new mapboxgl.Map({
+        container: 'map',
+        zoom: BUILDING_ZOOM,
+        center: {
+            lat: nw[0], lng: nw[1]
+        },
+        style: 'mapbox://styles/mapbox/streets-v11',
+        hash: true
+    });
+
+    map.on('load', async () => {
+        const shadeMap = new ShadeMap({
+            // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY. https://shademap.app/about
+            apiKey: "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InRwcGlvdHJvd3NraUBzaGFkZW1hcC5hcHAiLCJjcmVhdGVkIjoxNjYyNDkzMDY2Nzk0LCJpYXQiOjE2NjI0OTMwNjZ9.ovCrLTYsdKFTF6TW3DuODxCaAtGQ3qhcmqj3DWcol5g",
+            date: new Date(1682455188037 + 2 * 60 * 60 * 1000), // 6:39PM EST
+            color: '#ff0000',
+            opacity: 1,
+            terrainSource: {
+                maxZoom: 15,
+                tileSize: 256,
+                getSourceUrl: ({ x, y, z }) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`,
+                getElevation: ({ r, g, b, a }) => (r * 256 + g + b / 256) - 32768,
+            },
+            getFeatures: async () => {
+                await mapLoaded(map);
+                const buildingData = map.querySourceFeatures('composite', { sourceLayer: 'building' }).filter((feature) => {
+                    return feature.properties && feature.properties.underground !== "true" && (feature.properties.height || feature.properties.render_height)
+                });
+                return buildingData;
+            },
+        }).addTo(map);
+
+        const mLoaded = mapLoaded(map);
+        const smLoaded = shadeMapLoaded(shadeMap);
+
+        await Promise.all([mLoaded, smLoaded]);
+        await main(shadeMap, screens);
+    });
+
+
+</script>
+
+</html>
