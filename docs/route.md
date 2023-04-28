@@ -91,11 +91,11 @@ map.on('load', () => {
 })
 ```
 
-And finally, load the map and ShadeMap data for one group at a time and then compute the direct exposure for all the points of the group for the dates in the dates array. The return value is a bitmap array. Each 4 byte pixel contains either a sunlight or shade color value depending on if the corresponding location at the corresponding time is in the sun or shade. 
+And finally, load the map and ShadeMap data for one group at a time and then compute the direct exposure for all the points of the group for the dates in the dates array. The return value is a bitmap array. Each 4 byte rgba pixel of the bitmap contains either the sunlight or shade color value depending on if the corresponding location at the corresponding time is in the sun or shade. 
 
-Each column of the bitmap corresponds to a point location and each row of the bitmap corresponds to one of the Date values in the dates array. The bitmap value for pixel (0, height - 1) is the first point in the group at time given by the first Date in the dates array, while the bitmap value for pixel (width - 1, 0) is the last point in the group at time given by the lat date in the dates array.
+Each column of the bitmap corresponds to a location and each row of the bitmap corresponds to a Date value in the dates array. The bitmap value for pixel (0, height - 1) is the first location in the group at time given by the first Date in the dates array, while the bitmap value for pixel (width - 1, 0) is the last location in the group at time given by the lat date in the dates array.
 
-In this example, the dates array only contains a single date, so the bitmap will be 500 pixels wide (one pixel for each discrete point along the route) and 1 pixel high (corresponsing to a single date)
+In this example, the dates array only contains a single date, so the bitmap will be 500 pixels wide (one pixel for each location along the route) and 1 pixel high (corresponsing to a single date)
 
 ```javascript
 for (let i = 0; i < screenGroups.length; i++) {
@@ -108,22 +108,18 @@ for (let i = 0; i < screenGroups.length; i++) {
     map.setCenter(groupCenter.geometry.coordinates).setZoom(BUILDING_ZOOM);
     const mapboxLoaded = mapLoaded(map);
 
-    const [centerX, centerY] = unproject(groupCenter.geometry.coordinates, BUILDING_ZOOM);
-    const screenOriginCoords = map.getBounds().getNorthWest().toArray();
-    const [originX, originY] = unproject(screenOriginCoords, BUILDING_ZOOM);
-    const pixelCoordinates = group.map(coord => {
-        const [x, y] = unproject(coord, BUILDING_ZOOM);
-        return [x - originX, y - originY];
+    const locations = groupCenter.geometry.coordinates.map(coord => {
+        return { lng: coord[0], lat: coord[1] };
     })
     const dates = [new Date(1681493800745)];
 
     await Promise.all([mapboxLoaded, shadeMapLoaded]);
 
     const output = shadeMap._generateShadeProfile({
-        pixels: pixelCoordinates.flat(),
+        locations,
         dates,
-        sunColor: '#ffffff',
-        shadeColor: '#000000'
+        sunColor: [255, 255, 255, 255],
+        shadeColor: [0, 0, 0, 255]
     });
 
     // output is a (r,g,b,a) bitmap containing sunColor or shadeColor

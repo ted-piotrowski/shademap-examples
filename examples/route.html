@@ -27,7 +27,7 @@
 </body>
 <script src="https://api.tiles.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.js"></script>
 <script
-    src='https://www.unpkg.com/mapbox-gl-shadow-simulator@0.21.1/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
+    src='https://www.unpkg.com/mapbox-gl-shadow-simulator@0.27.0/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
 <script src='https://unpkg.com/@turf/turf/turf.min.js'></script>
 <script>
 
@@ -178,22 +178,18 @@
             map.setCenter(groupCenter.geometry.coordinates).setZoom(BUILDING_ZOOM);
             const mapboxLoaded = mapLoaded(map);
 
-            const [centerX, centerY] = unproject(groupCenter.geometry.coordinates, BUILDING_ZOOM);
-            const screenOriginCoords = map.getBounds().getNorthWest().toArray();
-            const [originX, originY] = unproject(screenOriginCoords, BUILDING_ZOOM);
-            const pixelCoordinates = group.map(coord => {
-                const [x, y] = unproject(coord, BUILDING_ZOOM);
-                return [x - originX, y - originY];
+            const locations = groupCenter.geometry.coordinates.map(coord => {
+                return { lng: coord[0], lat: coord[1] };
             })
             const dates = [new Date(1681493800745)];
 
             await Promise.all([mapboxLoaded, shadeMapLoaded]);
 
             const output = shadeMap._generateShadeProfile({
-                pixels: pixelCoordinates.flat(),
+                locations,
                 dates,
-                sunColor: '#ffffff',
-                shadeColor: '#000000'
+                sunColor: [255, 255, 255, 255],
+                shadeColor: [0, 0, 0, 255]
             });
 
             // output is a (r,g,b,a) bitmap containing sunColor or shadeColor
