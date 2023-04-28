@@ -178,7 +178,7 @@
             map.setCenter(groupCenter.geometry.coordinates).setZoom(BUILDING_ZOOM);
             const mapboxLoaded = mapLoaded(map);
 
-            const locations = groupCenter.geometry.coordinates.map(coord => {
+            const locations = group.map(coord => {
                 return { lng: coord[0], lat: coord[1] };
             })
             const dates = [new Date(1681493800745)];
