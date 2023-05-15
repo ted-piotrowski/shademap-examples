@@ -29,6 +29,7 @@
 <script
     src='https://www.unpkg.com/mapbox-gl-shadow-simulator@0.27.0/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
 <script src='https://unpkg.com/@turf/turf/turf.min.js'></script>
+<script src="./window.js"></script>
 <script>
 
     const TILE_SIZE = 512;
@@ -110,8 +111,7 @@
         screenGroups.push(group);
     }
 
-    mapboxgl.accessToken = // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY.
-        'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
+    mapboxgl.accessToken = window.MAPBOX_CRED;
     var map = window.map = new mapboxgl.Map({
         container: 'map',
         zoom: 15,
@@ -150,8 +150,7 @@
         })
 
         const shadeMap = new ShadeMap({
-            // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY. https://shademap.app/about
-            apiKey: "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InRwcGlvdHJvd3NraUBzaGFkZW1hcC5hcHAiLCJjcmVhdGVkIjoxNjYyNDkzMDY2Nzk0LCJpYXQiOjE2NjI0OTMwNjZ9.ovCrLTYsdKFTF6TW3DuODxCaAtGQ3qhcmqj3DWcol5g",
+            apiKey: window.SHADEMAP_CRED,
             date: new Date(1681493800745),
             terrainSource: {
                 maxZoom: 15,

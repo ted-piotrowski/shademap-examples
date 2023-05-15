@@ -47,6 +47,7 @@
 <script
     src='https://www.unpkg.com/mapbox-gl-shadow-simulator@0.25.1/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
 <script src="https://cdn.jsdelivr.net/npm/geotiff@2.0.7/dist-browser/geotiff.js"></script>
+<script src="./window.js"></script>
 <script>
     const TILE_SIZE = 512;
     const BUILDING_ZOOM = 15;
@@ -221,8 +222,7 @@
         }
     }
 
-    mapboxgl.accessToken = // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY.
-        'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
+    mapboxgl.accessToken = window.MAPBOX_CRED;
     var map = window.map = new mapboxgl.Map({
         container: 'map',
         zoom: BUILDING_ZOOM,
@@ -235,8 +235,7 @@
 
     map.on('load', async () => {
         const shadeMap = new ShadeMap({
-            // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY. https://shademap.app/about
-            apiKey: "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InRwcGlvdHJvd3NraUBzaGFkZW1hcC5hcHAiLCJjcmVhdGVkIjoxNjYyNDkzMDY2Nzk0LCJpYXQiOjE2NjI0OTMwNjZ9.ovCrLTYsdKFTF6TW3DuODxCaAtGQ3qhcmqj3DWcol5g",
+            apiKey: window.SHADEMAP_CRED,
             date: new Date(1682455188037 + 2 * 60 * 60 * 1000), // 6:39PM EST
             color: '#ff0000',
             opacity: 1,

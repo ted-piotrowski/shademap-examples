@@ -28,8 +28,11 @@
         style="padding:5px; font-family: arial, sans-serif; position:absolute; top:0;z-index:2001;color:white;background-color:black">
         Annual sunlight
     </div>
+    <button id="download" style="position:absolute;top:30px;z-index:2002">Download data</button>
     <canvas id="canvas" width="0" height="0" style="top:0;position: absolute; cursor: crosshair;z-index:2000"></canvas>
+    <script src="./window.js"></script>
     <script>
+
         const mapLoaded = (map) => {
             return new Promise((res, rej) => {
                 function cb() {
@@ -44,8 +47,7 @@
             });
         };
         /* Mapbox setup */
-        mapboxgl.accessToken = // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY.
-            'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
+        mapboxgl.accessToken = window.MAPBOX_CRED;
         const map = new mapboxgl.Map({
             container: 'mapid',
             style: 'mapbox://styles/mapbox/streets-v11',
@@ -59,6 +61,7 @@
         /* ShadeMap setup */
         const canvas = document.getElementById('canvas');
         const output = document.getElementById('output');
+        const download = document.getElementById('download');
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
         ctx.antialias = false;
@@ -68,8 +71,7 @@
         let marker;
         map.on('load', () => {
             shadeMap = new ShadeMap({
-                // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY. https://shademap.app/about
-                apiKey: "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InRwcGlvdHJvd3NraUBzaGFkZW1hcC5hcHAiLCJjcmVhdGVkIjoxNjYyNDkzMDY2Nzk0LCJpYXQiOjE2NjI0OTMwNjZ9.ovCrLTYsdKFTF6TW3DuODxCaAtGQ3qhcmqj3DWcol5g",
+                apiKey: window.SHADEMAP_CRED,
                 date: now,
                 opacity: 0.5,
                 terrainSource: {
@@ -98,6 +100,10 @@
 
         map.on('moveend', generateProfile);
 
+        let data = [], height = 0, width = 0, coords;
+        const SUN_COLOR = [15 ** 2 + 15, 14 ** 2 + 2, 2, 255]; //#eed202
+        const SHADE_COLOR = [0, 0, 0, 255];
+
         async function generateProfile() {
             marker.setLngLat(map.getCenter())
             await new Promise((res, rej) => {
@@ -108,15 +114,17 @@
             const startDate = new Date(2023, 0, 1);
             const endDate = new Date(2024, 0, 1);
 
-            const SUN_COLOR = [15 ** 2 + 15, 14 ** 2 + 2, 2, 255]; //#eed202
-            const SHADE_COLOR = [0, 0, 0, 255];
-            const { data, width, height } = shadeMap._generateLocationShadeProfile({
-                location: map.getCenter(),
+            coords = map.getCenter();
+            const profile = shadeMap._generateLocationShadeProfile({
+                location: coords,
                 startDate,
                 endDate,
                 sunColor: SUN_COLOR,
                 shadeColor: SHADE_COLOR
             });
+            data = profile.data;
+            height = profile.height;
+            width = profile.width;
 
             let minutesOfSun = 0;
             for (let i = 0; i < data.length; i += 4) {
@@ -156,6 +164,37 @@
             canvas.style.maxHeight = `100%`;
             ctx.drawImage(bitmap, 0, 0, width, height, 0, 0, width, height)
         }
+
+        download.addEventListener('click', () => {
+            const data = [];
+            for (let i = 0; i < canvas.width; i++) {
+                const oneDay = ctx.getImageData(i, 0, 1, 24 * 60).data;
+                let minutesOfSun = 0;
+                for (let j = 0; j < oneDay.length; j += 4) {
+                    if (oneDay[j] === SUN_COLOR[0] && oneDay[j + 1] === SUN_COLOR[1] && oneDay[j + 2] === SUN_COLOR[2] && oneDay[j + 3] === SUN_COLOR[3]) {
+                        minutesOfSun += 1;
+                    }
+                }
+                data.push(minutesOfSun);
+            }
+
+            const json = JSON.stringify({
+                "description": `Each data array position corresponds to the day of the year 0-${width}. The array value corresponds to minutes of direct sunlight.`,
+                "position": {
+                    lng: coords.lng,
+                    lat: coords.lat,
+                },
+                data
+            }, null, 2);
+
+            const datauri = "data:text/json;charset=utf-8," + encodeURIComponent(json);
+            const link = document.createElement("a");
+            link.href = datauri;
+            link.download = `annual-sunlight.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
 		/* End ShadeMap setup */
 
     </script>
