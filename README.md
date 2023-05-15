@@ -4,3 +4,4 @@ This repository demonstrates use cases for the [ShadeMap API](https://shademap.a
 
 - [Direct sunlight along a route](/docs/route.md)
 - [Large GeoTIFF export](/docs/large-geotiff.md)
+- [Annual sunlight calculation](/docs/annual-sunlight.md)
