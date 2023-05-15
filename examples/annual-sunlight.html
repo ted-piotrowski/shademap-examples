@@ -7,10 +7,7 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.8.2/mapbox-gl.css' rel='stylesheet' />
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.8.2/mapbox-gl.js'></script>
-    <script src='https://www.unpkg.com/suncalc@1.9.0/suncalc.js'></script>
-    <script src="../leaflet-shademap/dist/mapbox-gl-shadow-simulator.umd.min.js"></script>
-    <script src='https://unpkg.com/@turf/turf/turf.min.js'></script>
-    <script src="https://unpkg.com/@tmcw/togeojson/dist/togeojson.umd.js"></script>
+    <script src='https://www.unpkg.com/mapbox-gl-shadow-simulator/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
     <style>
         body {
             padding: 0px;
@@ -51,7 +48,7 @@
             'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
         const map = new mapboxgl.Map({
             container: 'mapid',
-            style: 'mapbox://styles/tppiotrowski/claiiur19000314o6zh427xv1',
+            style: 'mapbox://styles/mapbox/streets-v11',
             center: { lng: -112.94973, lat: 37.2677 },
             zoom: 14, // starting zoom
             maxPitch: 45, // ShadeMap does not work with pitch > 45
