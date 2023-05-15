@@ -47,7 +47,8 @@
             });
         };
         /* Mapbox setup */
-        mapboxgl.accessToken = 'pk.eyJ1IjoidHBwaW90cm93c2tpIiwiYSI6ImNrbGtjcXM4aDBxOW8yb2x5YnBxNHJ0d2IifQ.RuNb9H2ekmbEoG2_nqbjiA';
+        mapboxgl.accessToken = // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY.
+            'pk.eyJ1IjoiYWxhbnRnZW8tcHJlc2FsZXMiLCJhIjoiY2pzcTA4NjRiMTMxczQzcDFqa29maXk3bSJ9.pVYNTFKfcOXA_U_5TUwDWw';
         const map = new mapboxgl.Map({
             container: 'mapid',
             style: 'mapbox://styles/tppiotrowski/claiiur19000314o6zh427xv1',
@@ -70,6 +71,7 @@
         let marker;
         map.on('load', () => {
             shadeMap = new ShadeMap({
+                // PLEASE USE YOUR OWN API KEY. API KEY IS FOR DEMO PURPOSES ONLY. https://shademap.app/about
                 apiKey: "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InRwcGlvdHJvd3NraUBzaGFkZW1hcC5hcHAiLCJjcmVhdGVkIjoxNjYyNDkzMDY2Nzk0LCJpYXQiOjE2NjI0OTMwNjZ9.ovCrLTYsdKFTF6TW3DuODxCaAtGQ3qhcmqj3DWcol5g",
                 date: now,
                 opacity: 0.5,
