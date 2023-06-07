@@ -10,28 +10,38 @@
     <script src='https://www.unpkg.com/mapbox-gl-shadow-simulator/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
     <style>
         body {
+            font-family: Arial, Helvetica, sans-serif;
             padding: 0px;
             margin: 0px;
         }
 
-        #mapid {
+        #mapid,
+        #canvas {
             height: 100vh;
+            flex: 1 1 50vw;
+        }
+
+        #output {
+            padding: 5px;
+            color: white;
+            background-color: black;
         }
     </style>
     <title>ShadeMap: Shade Profile for Location</title>
 </head>
 
 <body>
-    <div id="mapid">
+    <div style="position:absolute;display:flex;flex-wrap:wrap;">
+        <div id="output"></div>
+        <button id="download">Download data</button>
     </div>
-    <div id="output"
-        style="padding:5px; font-family: arial, sans-serif; position:absolute; top:0;z-index:2001;color:white;background-color:black">
-        Annual sunlight
+    <div style="display:flex;">
+        <canvas id="canvas" width="0" height="0"></canvas>
+        <div id="mapid"></div>
     </div>
-    <button id="download" style="position:absolute;top:30px;z-index:2002">Download data</button>
-    <canvas id="canvas" width="0" height="0" style="top:0;position: absolute; cursor: crosshair;z-index:2000"></canvas>
     <script src="./window.js"></script>
     <script>
+        // TODO: ShadeMap does not account for daylight savings time :(
 
         const mapLoaded = (map) => {
             return new Promise((res, rej) => {
@@ -46,6 +56,7 @@
                 cb();
             });
         };
+
         /* Mapbox setup */
         mapboxgl.accessToken = window.MAPBOX_CRED;
         const map = new mapboxgl.Map({
@@ -56,6 +67,7 @@
             maxPitch: 45, // ShadeMap does not work with pitch > 45
             hash: true
         });
+        map.addControl(new mapboxgl.NavigationControl());
         /* End Mapbox setup */
 
         /* ShadeMap setup */
@@ -98,27 +110,33 @@
 
         });
 
+        map.on('move', () => {
+            marker.setLngLat(map.getCenter())
+        })
         map.on('moveend', generateProfile);
+        const YEAR = 2023;
 
-        let data = [], height = 0, width = 0, coords;
+        let timeout = 0;
+        window.addEventListener('resize', () => {
+            canvas.width = 0;
+            canvas.height = 0;
+            window.clearTimeout(timeout);
+            timeout = window.setTimeout(generateProfile, 250);
+        })
+
+        let data = [], height = 0, width = 0;
         const SUN_COLOR = [15 ** 2 + 15, 14 ** 2 + 2, 2, 255]; //#eed202
         const SHADE_COLOR = [0, 0, 0, 255];
 
         async function generateProfile() {
-            marker.setLngLat(map.getCenter())
             await new Promise((res, rej) => {
                 shadeMap.on('idle', res);
             })
 
-            // create a canvas
-            const startDate = new Date(2023, 0, 1);
-            const endDate = new Date(2024, 0, 1);
-
-            coords = map.getCenter();
             const profile = shadeMap._generateLocationShadeProfile({
-                location: coords,
-                startDate,
-                endDate,
+                location: map.getCenter(),
+                startDate: new Date(YEAR, 0, 1),
+                endDate: new Date(YEAR + 1, 0, 1),
                 sunColor: SUN_COLOR,
                 shadeColor: SHADE_COLOR
             });
@@ -126,65 +144,93 @@
             height = profile.height;
             width = profile.width;
 
+            // calculate minutes of sun
             let minutesOfSun = 0;
             for (let i = 0; i < data.length; i += 4) {
                 if (data[i] === SUN_COLOR[0] && data[i + 1] === SUN_COLOR[1] && data[i + 2] == SUN_COLOR[2] && data[i + 3] === SUN_COLOR[3]) {
                     minutesOfSun += 1;
                 }
             }
-
             const days = Math.floor(minutesOfSun / (60 * 24));
             const hours = Math.floor((minutesOfSun - days * 60 * 24) / 60);
             const minutes = minutesOfSun - days * 60 * 24 - hours * 60;
-
             output.innerText = `Annual sunlight: ${days} days, ${hours} hours, ${minutes} minutes`;
+            // end calculate minutes of sun
 
             const imageData = new ImageData(new Uint8ClampedArray(data.buffer), width, height);
-            let firstLine = 0;
-            let lastLine = height;
-            for (let i = 0; i < height; i++) {
-                for (let j = 0; j < width * 4; j += 4) {
-                    const index = i * width * 4 + 4 * j;
-                    if (data[index] === SUN_COLOR[0] &&
-                        data[index + 1] === SUN_COLOR[1] &&
-                        data[index + 2] === SUN_COLOR[2] &&
-                        data[index + 3] === SUN_COLOR[3]
-                    ) {
-                        if (firstLine === 0) {
-                            firstLine = i;
-                        }
-                        lastLine = i;
-                    }
-                }
-            }
+
             const bitmap = await createImageBitmap(imageData);
-            canvas.width = width;
-            canvas.height = height;
-            canvas.style.width = `25%`;
-            canvas.style.maxHeight = `100%`;
-            ctx.drawImage(bitmap, 0, 0, width, height, 0, 0, width, height)
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * devicePixelRatio;
+            canvas.height = rect.height * devicePixelRatio;
+            ctx.drawImage(bitmap, 0, 0, width, height, 0, 0, canvas.width, canvas.height);
+            ctx.font = "2em sans-serif";
+            ctx.fillStyle = "white";
+            ctx.strokeStyle = "white";
+
+            ctx.beginPath()
+
+            // hours, y-axis
+            for (let i = 0; i < canvas.height; i += canvas.height / 24) {
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+            }
+            for (let i = 1; i < 24; i++) {
+                ctx.fillText(i, 3, canvas.height / 24 * (24 - i) - 10);
+            }
+
+            // months, x-axis
+            let xOffset = 0;
+            for (let i = 1; i <= 12; i++) {
+                const month = new Date(new Date().getYear(), i, 0);
+                const days = month.getDate();
+                const monthName = month.toLocaleDateString([], { month: "short" });
+                ctx.fillText(monthName, xOffset / profile.width * canvas.width + 10, canvas.height - 10);
+                xOffset += days;
+                ctx.moveTo(xOffset / profile.width * canvas.width, 0);
+                ctx.lineTo(xOffset / profile.width * canvas.width, canvas.height);
+            }
+            ctx.stroke();
         }
 
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = e.target.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            // TODO width contains total days in YEAR i.e. 365/366
+            const day = Math.floor(x / rect.width * width);
+            const time = Math.floor((1 - y / rect.height) * 24 * 60);
+            const hours = Math.floor(time / 60);
+            const minutes = Math.floor(time % 60);
+
+            // day of year, hour, minutes, year is 2023
+            const startOfYear = new Date(YEAR, 0);
+            const startOfDay = new Date(startOfYear.setDate(day));
+            const date = new Date(startOfDay.setHours(hours, minutes));
+            shadeMap && shadeMap.setDate(date);
+        });
+
         download.addEventListener('click', () => {
-            const data = [];
-            for (let i = 0; i < canvas.width; i++) {
-                const oneDay = ctx.getImageData(i, 0, 1, 24 * 60).data;
+            const dayData = [];
+            for (let i = 0; i < width; i++) {
                 let minutesOfSun = 0;
-                for (let j = 0; j < oneDay.length; j += 4) {
-                    if (oneDay[j] === SUN_COLOR[0] && oneDay[j + 1] === SUN_COLOR[1] && oneDay[j + 2] === SUN_COLOR[2] && oneDay[j + 3] === SUN_COLOR[3]) {
+                for (let j = 0; j < height; j++) {
+                    const index = j * width * 4 + i * 4;
+                    if (data[index] === SUN_COLOR[0] && data[index + 1] === SUN_COLOR[1] && data[index + 2] === SUN_COLOR[2] && data[index + 3] === SUN_COLOR[3]) {
                         minutesOfSun += 1;
                     }
                 }
-                data.push(minutesOfSun);
+                dayData.push(minutesOfSun);
             }
 
             const json = JSON.stringify({
                 "description": `Each data array position corresponds to the day of the year 0-${width}. The array value corresponds to minutes of direct sunlight.`,
                 "position": {
-                    lng: coords.lng,
-                    lat: coords.lat,
+                    lng: map.getCenter().lng,
+                    lat: map.getCenter().lat,
                 },
-                data
+                "minutesOfDirectSunPerDay": dayData,
+                "minutesOfDirectSunPerYear": dayData.reduce((prev, cur) => prev + cur, 0)
             }, null, 2);
 
             const datauri = "data:text/json;charset=utf-8," + encodeURIComponent(json);
