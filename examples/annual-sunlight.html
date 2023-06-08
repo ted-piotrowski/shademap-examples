@@ -31,7 +31,7 @@
 </head>
 
 <body>
-    <div style="position:absolute;display:flex;flex-wrap:wrap;">
+    <div style="position:absolute;display:flex;flex-wrap:wrap;z-index:2000">
         <div id="output"></div>
         <button id="download">Download data</button>
     </div>
@@ -39,29 +39,16 @@
         <canvas id="canvas" width="0" height="0"></canvas>
         <div id="mapid"></div>
     </div>
+    <script src="./utils.js"></script>
     <script src="./window.js"></script>
     <script>
         // TODO: ShadeMap does not account for daylight savings time :(
-
-        const mapLoaded = (map) => {
-            return new Promise((res, rej) => {
-                function cb() {
-                    if (!map.loaded()) {
-                        return;
-                    }
-                    map.off("render", cb);
-                    res();
-                }
-                map.on("render", cb);
-                cb();
-            });
-        };
 
         /* Mapbox setup */
         mapboxgl.accessToken = window.MAPBOX_CRED;
         const map = new mapboxgl.Map({
             container: 'mapid',
-            style: 'mapbox://styles/mapbox/streets-v11',
+            style: 'mapbox://styles/tppiotrowski/claiiur19000314o6zh427xv1',
             center: { lng: -112.94973, lat: 37.2677 },
             zoom: 14, // starting zoom
             maxPitch: 45, // ShadeMap does not work with pitch > 45
@@ -94,7 +81,7 @@
                     _overzoom: 18,
                 },
                 getFeatures: async () => {
-                    await mapLoaded(map);
+                    await SMUtils.mapLoaded(map);
                     const buildingData = map.querySourceFeatures('composite', { sourceLayer: 'building' }).filter((feature) => {
                         return feature.properties && feature.properties.underground !== "true" && (feature.properties.height || feature.properties.render_height)
                     });
@@ -125,19 +112,29 @@
             timeout = window.setTimeout(generateProfile, 250);
         })
 
-        let data = [], height = 0, width = 0;
+        let data = [], height = 0, width = 0, timeOffset = 0;
         const SUN_COLOR = [15 ** 2 + 15, 14 ** 2 + 2, 2, 255]; //#eed202
         const SHADE_COLOR = [0, 0, 0, 255];
 
         async function generateProfile() {
+            await mapLoaded(map);
+            const timeZone = SMUtils.getTimeZone(map);
+
             await new Promise((res, rej) => {
                 shadeMap.on('idle', res);
             })
 
+            const startDate = new Date(YEAR, 0, 1);
+            const endDate = new Date(YEAR + 1, 0, 1);
+            timeOffset = UTCOffsetByTimeZone(startDate, Intl.DateTimeFormat().resolvedOptions().timeZone)
+                - SMUtils.UTCOffsetByTimeZone(startDate, timeZone);
+
+            console.log(timeOffset / 1000 / 60)
+
             const profile = shadeMap._generateLocationShadeProfile({
                 location: map.getCenter(),
-                startDate: new Date(YEAR, 0, 1),
-                endDate: new Date(YEAR + 1, 0, 1),
+                startDate: new Date(startDate.getTime() - timeOffset),
+                endDate: new Date(endDate.getTime() - timeOffset),
                 sunColor: SUN_COLOR,
                 shadeColor: SHADE_COLOR
             });
@@ -207,7 +204,7 @@
             // day of year, hour, minutes, year is 2023
             const startOfYear = new Date(YEAR, 0);
             const startOfDay = new Date(startOfYear.setDate(day));
-            const date = new Date(startOfDay.setHours(hours, minutes));
+            const date = new Date(startOfDay.setHours(hours, minutes) - timeOffset);
             shadeMap && shadeMap.setDate(date);
         });
 

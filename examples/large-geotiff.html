@@ -47,6 +47,7 @@
 <script src='https://www.unpkg.com/mapbox-gl-shadow-simulator/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
 <script src="https://cdn.jsdelivr.net/npm/geotiff@2.0.7/dist-browser/geotiff.js"></script>
 <script src="./window.js"></script>
+<script src="./utils.js"></script>
 <script>
     const TILE_SIZE = 512;
     const BUILDING_ZOOM = 15;
@@ -63,20 +64,6 @@
         const [lat, lng] = coords;
         return [Math.floor(lng2pixel(lng, zoom)), Math.floor(lat2pixel(lat, zoom))];
     }
-
-    const mapLoaded = (map) => {
-        return new Promise((res, rej) => {
-            function cb() {
-                if (!map.loaded()) {
-                    return;
-                }
-                map.off("render", cb);
-                res();
-            }
-            map.on("render", cb);
-            cb();
-        });
-    };
 
     const shadeMapLoaded = (shadeMap) => {
         return new Promise((res, rej) => {
@@ -158,7 +145,7 @@
         const center = merc.toLngLat();
         map.setCenter(center);
         const smLoaded = shadeMapLoaded(shadeMap)
-        const mapboxLoaded = mapLoaded(map);
+        const mapboxLoaded = SMUtils.mapLoaded(map);
         await Promise.all([mapboxLoaded, smLoaded]);
         return;
     }
@@ -246,7 +233,7 @@
                 _overzoom: 18,
             },
             getFeatures: async () => {
-                await mapLoaded(map);
+                await SMUtils.mapLoaded(map);
                 const buildingData = map.querySourceFeatures('composite', { sourceLayer: 'building' }).filter((feature) => {
                     return feature.properties && feature.properties.underground !== "true" && (feature.properties.height || feature.properties.render_height)
                 });
@@ -254,7 +241,7 @@
             },
         }).addTo(map);
 
-        const mLoaded = mapLoaded(map);
+        const mLoaded = SMUtils.mapLoaded(map);
         const smLoaded = shadeMapLoaded(shadeMap);
 
         await Promise.all([mLoaded, smLoaded]);

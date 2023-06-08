@@ -29,24 +29,11 @@
 <script src='https://www.unpkg.com/mapbox-gl-shadow-simulator/dist/mapbox-gl-shadow-simulator.umd.min.js'></script>
 <script src='https://unpkg.com/@turf/turf/turf.min.js'></script>
 <script src="./window.js"></script>
+<script src="./utils.js"></script>
 <script>
 
     const TILE_SIZE = 512;
     const BUILDING_ZOOM = 15;
-
-    const mapLoaded = (map) => {
-        return new Promise((res, rej) => {
-            function cb() {
-                if (!map.loaded()) {
-                    return;
-                }
-                map.off("render", cb);
-                res();
-            }
-            map.on("render", cb);
-            cb();
-        });
-    };
 
     const lng2pixel = (lng, zoom) => {
         return ((lng + 180) / 360 * Math.pow(2, zoom)) * TILE_SIZE;
@@ -159,7 +146,7 @@
                 _overzoom: 18,
             },
             getFeatures: async () => {
-                await mapLoaded(map);
+                await SMUtils.mapLoaded(map);
                 const buildingData = map.querySourceFeatures('composite', { sourceLayer: 'building' }).filter((feature) => {
                     return feature.properties && feature.properties.underground !== "true" && (feature.properties.height || feature.properties.render_height)
                 });
@@ -175,7 +162,7 @@
                 shadeMap.on('idle', res);
             });
             map.setCenter(groupCenter.geometry.coordinates).setZoom(BUILDING_ZOOM);
-            const mapboxLoaded = mapLoaded(map);
+            const mapboxLoaded = SMUtils.mapLoaded(map);
 
             const locations = group.map(coord => {
                 return { lng: coord[0], lat: coord[1] };
