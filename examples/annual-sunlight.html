@@ -41,7 +41,7 @@
             border-radius: 3px;
         }
     </style>
-    <title>ShadeMap: Shade Profile for Location</title>
+    <title>ShadeMap: Direct sunlight chart</title>
 </head>
 
 <body>
@@ -57,8 +57,6 @@
     <script src="./utils.js"></script>
     <script src="./window.js"></script>
     <script>
-        // TODO: ShadeMap does not account for daylight savings time :(
-
         /* Mapbox setup */
         mapboxgl.accessToken = window.MAPBOX_CRED;
         const map = new mapboxgl.Map({
