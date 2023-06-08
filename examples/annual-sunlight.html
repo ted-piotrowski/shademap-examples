@@ -21,16 +21,31 @@
             flex: 1 1 50vw;
         }
 
+        #canvas {
+            cursor: crosshair;
+        }
+
         #output {
             padding: 5px;
             color: white;
             background-color: black;
+        }
+
+        #tooltip {
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: black;
+            color: white;
+            padding: 3px;
+            border-radius: 3px;
         }
     </style>
     <title>ShadeMap: Shade Profile for Location</title>
 </head>
 
 <body>
+    <span id="tooltip"></span>
     <div style="position:absolute;display:flex;flex-wrap:wrap;z-index:2000">
         <div id="output"></div>
         <button id="download">Download data</button>
@@ -61,6 +76,7 @@
         const canvas = document.getElementById('canvas');
         const output = document.getElementById('output');
         const download = document.getElementById('download');
+        const tooltip = document.getElementById('tooltip');
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
         ctx.antialias = false;
@@ -112,13 +128,13 @@
             timeout = window.setTimeout(generateProfile, 250);
         })
 
-        let data = [], height = 0, width = 0, timeOffset = 0;
+        let data = [], height = 0, width = 0, timeZone = 0;
         const SUN_COLOR = [15 ** 2 + 15, 14 ** 2 + 2, 2, 255]; //#eed202
         const SHADE_COLOR = [0, 0, 0, 255];
 
         async function generateProfile() {
             await mapLoaded(map);
-            const timeZone = SMUtils.getTimeZone(map);
+            timeZone = SMUtils.getTimeZone(map);
 
             await new Promise((res, rej) => {
                 shadeMap.on('idle', res);
@@ -126,10 +142,8 @@
 
             const startDate = new Date(YEAR, 0, 1);
             const endDate = new Date(YEAR + 1, 0, 1);
-            timeOffset = UTCOffsetByTimeZone(startDate, Intl.DateTimeFormat().resolvedOptions().timeZone)
+            const timeOffset = UTCOffsetByTimeZone(startDate, Intl.DateTimeFormat().resolvedOptions().timeZone)
                 - SMUtils.UTCOffsetByTimeZone(startDate, timeZone);
-
-            console.log(timeOffset / 1000 / 60)
 
             const profile = shadeMap._generateLocationShadeProfile({
                 location: map.getCenter(),
@@ -141,6 +155,24 @@
             data = profile.data;
             height = profile.height;
             width = profile.width;
+
+            let offset = 0;
+            let startDST = 0;
+            let DSTOffset = 0;
+            let endDST = 0;
+            for (let i = 0; i < width; i++) {
+                const date = new Date(startDate.getTime() - timeOffset).getTime() + 1000 * 60 * 60 * 24 * i;
+                const temp = SMUtils.UTCOffsetByTimeZone(new Date(date), timeZone);
+                if (offset !== 0 && temp !== offset) {
+                    if (startDST === 0) {
+                        startDST = i;
+                        DSTOffset = (offset - temp) / 1000 / 60;
+                    } else {
+                        endDST = i;
+                    }
+                }
+                offset = temp;
+            }
 
             // calculate minutes of sun
             let minutesOfSun = 0;
@@ -161,7 +193,11 @@
             const rect = canvas.getBoundingClientRect();
             canvas.width = rect.width * devicePixelRatio;
             canvas.height = rect.height * devicePixelRatio;
+
             ctx.drawImage(bitmap, 0, 0, width, height, 0, 0, canvas.width, canvas.height);
+            if (startDST !== 0 && endDST !== 0) {
+                ctx.drawImage(bitmap, startDST, 0, endDST - startDST, height, startDST / width * canvas.width, -DSTOffset / (24 * 60) * canvas.height, (endDST - startDST) / width * canvas.width, canvas.height);
+            }
             ctx.font = "2em sans-serif";
             ctx.fillStyle = "white";
             ctx.strokeStyle = "white";
@@ -192,6 +228,9 @@
         }
 
         canvas.addEventListener('mousemove', (e) => {
+            if (timeZone === 0) {
+                return;
+            }
             const rect = e.target.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
@@ -204,7 +243,13 @@
             // day of year, hour, minutes, year is 2023
             const startOfYear = new Date(YEAR, 0);
             const startOfDay = new Date(startOfYear.setDate(day));
-            const date = new Date(startOfDay.setHours(hours, minutes) - timeOffset);
+            const dayWithTime = startOfDay.setHours(hours, minutes)
+            const timeOffset = UTCOffsetByTimeZone(new Date(dayWithTime), Intl.DateTimeFormat().resolvedOptions().timeZone)
+                - SMUtils.UTCOffsetByTimeZone(new Date(dayWithTime), timeZone);
+            const date = new Date(dayWithTime - timeOffset);
+            tooltip.style.left = `${e.clientX + 10}px`;
+            tooltip.style.top = `${e.clientY + 10}px`;
+            tooltip.innerText = date.toLocaleString([], { timeZone });
             shadeMap && shadeMap.setDate(date);
         });
 
